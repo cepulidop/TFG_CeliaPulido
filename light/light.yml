@@ -1,0 +1,73 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: light-configmap
+data:
+    light.py: |
+      import RPi.GPIO as GPIO
+      import time
+
+      # Set the GPIO mode
+      GPIO.setmode(GPIO.BCM)
+
+      # Define the GPIO pin number
+      light_pin = 18
+
+      # Setup the GPIO pin for output
+      GPIO.setup(light_pin, GPIO.OUT)
+
+      while True:
+        # Turn on the light
+        GPIO.output(light_pin, GPIO.HIGH)
+        print("Light on")
+        # Wait for some time
+        time.sleep(1)
+
+        # Turn off the light
+        GPIO.output(light_pin, GPIO.LOW)
+        print("Light off")
+        # Wait for some time
+        time.sleep(1)
+
+      # Clean up the GPIO settings
+      GPIO.cleanup()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: light-deployment
+  labels:
+    app: light
+spec:
+  selector:
+    matchLabels:
+      app: light
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: light
+    spec:
+      containers:
+      - name: light
+        image: python:3.9-slim-bullseye 
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c", "apt-get update && apt-get install -y sudo gcc && pip install RPi.GPIO && sudo python3 /light.py"]
+        securityContext:
+          privileged: true
+          runAsUser: 0  
+        volumeMounts:
+        - name: light-configmap
+          mountPath: /light.py
+          subPath: light.py
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+      volumes:
+      - name: light-configmap
+        configMap:
+          name: light-configmap

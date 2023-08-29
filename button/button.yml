@@ -1,0 +1,60 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: button-configmap
+data:
+    button.py: |
+      import RPi.GPIO as GPIO
+
+      BUTTON_PIN = 18
+
+      GPIO.setmode(GPIO.BCM)
+      GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+      try:
+          while True:
+              button_state = GPIO.input(BUTTON_PIN)
+              if button_state == GPIO.LOW:
+                  print("Button pressed")
+      except KeyboardInterrupt:
+          GPIO.cleanup()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: button-deployment
+  labels:
+    app: button
+spec:
+  selector:
+    matchLabels:
+      app: button
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: button
+    spec:
+      containers:
+      - name: button
+        image: python:3.9-slim-bullseye 
+        imagePullPolicy: IfNotPresent
+        command: ["sh", "-c", "apt-get update && apt-get install -y sudo gcc && pip install RPi.GPIO && sudo python3 /button.py"]
+        securityContext:
+          privileged: true
+          runAsUser: 0  
+        volumeMounts:
+        - name: button-configmap
+          mountPath: /button.py
+          subPath: button.py
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+          requests:
+            memory: "64Mi"
+            cpu: "250m"
+      volumes:
+      - name: button-configmap
+        configMap:
+          name: button-configmap
